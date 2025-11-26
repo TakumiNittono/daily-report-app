@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { promptNotificationPermission } from '@/app/components/OneSignalInit'
 
 export default function LoginForm() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,7 @@ export default function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notificationLoading, setNotificationLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -82,6 +84,18 @@ export default function LoginForm() {
     }
   }
 
+  const handleNotificationPermission = async () => {
+    setNotificationLoading(true)
+    try {
+      await promptNotificationPermission()
+    } catch (error: any) {
+      console.error('通知許可のリクエストに失敗しました:', error)
+      // エラーが発生してもユーザーには通知しない（OneSignalの制限などで失敗する可能性があるため）
+    } finally {
+      setNotificationLoading(false)
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
@@ -128,6 +142,20 @@ export default function LoginForm() {
         {loading ? '処理中...' : isSignUp ? 'サインアップ' : 'ログイン'}
       </button>
 
+      <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+        <button
+          type="button"
+          onClick={handleNotificationPermission}
+          disabled={notificationLoading}
+          className="w-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+        >
+          {notificationLoading ? '処理中...' : '🔔 プッシュ通知を許可する'}
+        </button>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 text-center">
+          ログイン前に通知を許可すると、重要な情報をお届けできます
+        </p>
+      </div>
+
       <div className="text-center space-y-2">
         <button
           type="button"
@@ -148,4 +176,3 @@ export default function LoginForm() {
     </form>
   )
 }
-
