@@ -34,6 +34,7 @@ Vercelのプロジェクト設定画面で、以下の環境変数を追加：
 ```
 NEXT_PUBLIC_SUPABASE_URL=あなたのSupabaseプロジェクトURL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=あなたのSupabaseアノンキー
+NEXT_PUBLIC_ONESIGNAL_APP_ID=あなたのOneSignalアプリID
 ```
 
 **設定手順：**
