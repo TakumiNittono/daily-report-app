@@ -12,6 +12,8 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notificationLoading, setNotificationLoading] = useState(false)
+  const [notificationError, setNotificationError] = useState<string | null>(null)
+  const [notificationSuccess, setNotificationSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -86,11 +88,31 @@ export default function LoginForm() {
 
   const handleNotificationPermission = async () => {
     setNotificationLoading(true)
+    setNotificationError(null)
+    setNotificationSuccess(false)
+    
     try {
       await promptNotificationPermission()
+      setNotificationSuccess(true)
+      // 成功メッセージを3秒後に消す
+      setTimeout(() => {
+        setNotificationSuccess(false)
+      }, 3000)
     } catch (error: any) {
       console.error('通知許可のリクエストに失敗しました:', error)
-      // エラーが発生してもユーザーには通知しない（OneSignalの制限などで失敗する可能性があるため）
+      
+      // エラーメッセージをユーザーに表示
+      let errorMessage = '通知許可のリクエストに失敗しました。'
+      
+      if (error?.message?.includes('Can only be used on')) {
+        errorMessage = '通知機能は本番環境（Vercel）でのみ利用できます。'
+      } else if (error?.message?.includes('App ID')) {
+        errorMessage = 'OneSignalの設定が完了していません。環境変数を確認してください。'
+      } else if (error?.message) {
+        errorMessage = `エラー: ${error.message}`
+      }
+      
+      setNotificationError(errorMessage)
     } finally {
       setNotificationLoading(false)
     }
@@ -143,6 +165,16 @@ export default function LoginForm() {
       </button>
 
       <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+        {notificationSuccess && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded mb-3 text-sm">
+            ✓ 通知許可のプロンプトが表示されました
+          </div>
+        )}
+        {notificationError && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 px-4 py-3 rounded mb-3 text-sm">
+            {notificationError}
+          </div>
+        )}
         <button
           type="button"
           onClick={handleNotificationPermission}

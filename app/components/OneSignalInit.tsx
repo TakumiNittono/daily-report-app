@@ -59,10 +59,38 @@ export async function initializeOneSignal(): Promise<void> {
 // 通知許可プロンプトを表示する関数（外部から呼び出し可能）
 export async function promptNotificationPermission(): Promise<void> {
   try {
+    console.log('OneSignal: Starting notification permission prompt...')
+    
+    // 開発環境でlocalhostの場合
+    const isLocalhost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    
+    if (isLocalhost) {
+      throw new Error('通知機能は本番環境（Vercel）でのみ利用できます。localhostでは動作しません。')
+    }
+    
+    // 初期化
     await initializeOneSignal()
+    
+    console.log('OneSignal: Initialized, prompting for permission...')
+    
+    // プロンプトを表示（既に許可/拒否されている場合は、OneSignalが自動的に処理します）
     await OneSignal.Slidedown.promptPush()
+    console.log('OneSignal: Prompt displayed successfully')
   } catch (error: any) {
     console.error('OneSignal prompt error:', error)
+    
+    // エラーメッセージをより分かりやすく
+    if (error?.message?.includes('localhost')) {
+      throw error
+    }
+    if (error?.message?.includes('Can only be used on')) {
+      throw new Error('通知機能は本番環境（Vercel）でのみ利用できます。')
+    }
+    if (error?.message?.includes('App ID')) {
+      throw new Error('OneSignalの設定が完了していません。環境変数を確認してください。')
+    }
+    
     throw error
   }
 }
