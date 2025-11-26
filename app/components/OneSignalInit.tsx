@@ -69,19 +69,62 @@ export async function promptNotificationPermission(): Promise<void> {
       throw new Error('通知機能は本番環境（Vercel）でのみ利用できます。localhostでは動作しません。')
     }
     
+    // ブラウザが通知をサポートしているか確認
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      throw new Error('このブラウザは通知をサポートしていません。')
+    }
+    
+    // 既に通知許可の状態を確認
+    const currentPermission = Notification.permission
+    console.log('OneSignal: Current permission status:', currentPermission)
+    
+    if (currentPermission === 'granted') {
+      throw new Error('通知は既に許可されています。')
+    }
+    
+    if (currentPermission === 'denied') {
+      throw new Error('通知は既に拒否されています。ブラウザの設定から変更してください。')
+    }
+    
     // 初期化
     await initializeOneSignal()
     
     console.log('OneSignal: Initialized, prompting for permission...')
     
-    // プロンプトを表示（既に許可/拒否されている場合は、OneSignalが自動的に処理します）
-    await OneSignal.Slidedown.promptPush()
-    console.log('OneSignal: Prompt displayed successfully')
+    // まずネイティブの通知許可をリクエスト（iPhoneで必要）
+    if (currentPermission === 'default') {
+      const permission = await Notification.requestPermission()
+      console.log('OneSignal: Native permission result:', permission)
+      
+      if (permission === 'denied') {
+        throw new Error('通知が拒否されました。')
+      }
+      
+      if (permission === 'granted') {
+        // 許可されたら、OneSignalにも登録
+        try {
+          // OneSignalのプロンプトも表示（既に許可されている場合はスキップされる）
+          await OneSignal.Slidedown.promptPush()
+          console.log('OneSignal: Prompt completed')
+        } catch (slidedownError) {
+          // Slidedownのエラーは無視（既に許可されている場合など）
+          console.log('OneSignal: Slidedown skipped or failed (this is OK if permission is already granted)')
+        }
+      }
+    }
+    
+    console.log('OneSignal: Permission prompt completed successfully')
   } catch (error: any) {
     console.error('OneSignal prompt error:', error)
     
     // エラーメッセージをより分かりやすく
     if (error?.message?.includes('localhost')) {
+      throw error
+    }
+    if (error?.message?.includes('サポートしていません')) {
+      throw error
+    }
+    if (error?.message?.includes('既に')) {
       throw error
     }
     if (error?.message?.includes('Can only be used on')) {
