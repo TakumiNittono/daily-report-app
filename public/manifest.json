@@ -1,0 +1,19 @@
+{
+  "name": "日報 & 自己管理",
+  "short_name": "日報管理",
+  "description": "チームメンバー向け日報＆自己管理アプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
