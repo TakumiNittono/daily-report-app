@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TabType } from '@/types'
 import TodayTab from './today-tab'
 import HistoryTab from './history-tab'
 import TodoListByDate from './todo-list-by-date'
 import NotificationsTab from './notifications-tab'
 import NotificationSync from '@/app/components/NotificationSync'
+import { createClient } from '@/lib/supabase/client'
 
 interface TabNavigationProps {
   userId: string
@@ -14,6 +15,49 @@ interface TabNavigationProps {
 
 export default function TabNavigation({ userId }: TabNavigationProps) {
   const [activeTab, setActiveTab] = useState<TabType>('today')
+  const [unreadCount, setUnreadCount] = useState(0)
+  const supabase = createClient()
+
+  // 未読通知数を取得
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('is_read', false)
+
+        if (error) throw error
+        setUnreadCount(count || 0)
+      } catch (error) {
+        console.error('Error fetching unread count:', error)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // リアルタイム更新のサブスクリプション
+    const channel = supabase
+      .channel('notifications-count-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          fetchUnreadCount()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [userId, supabase])
 
   return (
     <div>
@@ -59,6 +103,11 @@ export default function TabNavigation({ userId }: TabNavigationProps) {
           }`}
         >
           お知らせ
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 px-1.5 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full min-w-[18px] text-center">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
       </div>
 
