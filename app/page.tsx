@@ -25,17 +25,17 @@ export default async function Home() {
             <div>
               <h1 className="text-4xl font-bold text-black dark:text-zinc-50 mb-2">
                 日報＆自己管理
-              </h1>
+          </h1>
               <p className="text-zinc-600 dark:text-zinc-400">
                 {user.email}
-              </p>
-            </div>
+          </p>
+        </div>
             <div className="flex gap-4">
               {adminStatus && (
-                <a
+          <a
                   href="/admin"
                   className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                >
+          >
                   管理者画面
                 </a>
               )}
@@ -43,12 +43,12 @@ export default async function Home() {
                 <button
                   type="submit"
                   className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                >
+          >
                   ログアウト
                 </button>
               </form>
             </div>
-          </div>
+        </div>
         </header>
 
         {/* タブナビゲーションとコンテンツ */}
