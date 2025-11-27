@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import AdminNotificationForm from './admin-notification-form'
 
 interface UserStats {
   user_id: string
@@ -208,6 +209,9 @@ export default function AdminDashboard() {
           </p>
         </div>
       )}
+
+      {/* お知らせ作成フォーム */}
+      <AdminNotificationForm />
 
       {/* 全体統計 */}
       {stats && (
