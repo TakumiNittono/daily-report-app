@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 // PushAlertのWidget ID（環境変数から取得）
+// Next.jsでは、NEXT_PUBLIC_プレフィックスの環境変数はクライアント側で使用可能
+// ビルド時に置き換えられるように、直接参照する
 const PUSHALERT_WIDGET_ID = process.env.NEXT_PUBLIC_PUSHALERT_WIDGET_ID || ''
 
 // 通知許可プロンプトを表示する関数（外部から呼び出し可能）
@@ -99,10 +101,16 @@ export default function PushAlertInit() {
   const pathname = usePathname()
 
   useEffect(() => {
+    // 環境変数を取得（実行時に再取得）
+    const widgetId = process.env.NEXT_PUBLIC_PUSHALERT_WIDGET_ID || ''
+    
+    // デバッグ用：環境変数が読み込まれているか確認
+    console.log('PushAlert: Widget ID from env:', widgetId || 'NOT SET')
+    
     // PushAlertのスクリプトを読み込む（PushAlert推奨形式）
-    if (typeof window !== 'undefined' && PUSHALERT_WIDGET_ID) {
+    if (typeof window !== 'undefined' && widgetId) {
       // 既にスクリプトが読み込まれているか確認
-      if (!document.querySelector(`script[src*="pushalert.co/integrate_${PUSHALERT_WIDGET_ID}"]`)) {
+      if (!document.querySelector(`script[src*="pushalert.co/integrate_${widgetId}"]`)) {
         // PushAlertの推奨スクリプト形式で読み込む
         const script = document.createElement('script')
         script.type = 'text/javascript'
@@ -110,14 +118,16 @@ export default function PushAlertInit() {
           (function(d, t) {
             var g = d.createElement(t),
                 s = d.getElementsByTagName(t)[0];
-            g.src = "https://cdn.pushalert.co/integrate_${PUSHALERT_WIDGET_ID}.js";
+            g.src = "https://cdn.pushalert.co/integrate_${widgetId}.js";
             s.parentNode.insertBefore(g, s);
           }(document, "script"));
         `
         document.head.appendChild(script)
         
-        console.log('PushAlert: Script loaded')
+        console.log('PushAlert: Script loaded with Widget ID:', widgetId)
       }
+    } else if (!widgetId) {
+      console.warn('PushAlert: Widget ID is not set. Please set NEXT_PUBLIC_PUSHALERT_WIDGET_ID environment variable.')
     }
   }, [])
 
