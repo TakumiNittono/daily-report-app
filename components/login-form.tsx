@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { promptNotificationPermission } from '@/app/components/OneSignalInit'
+import { promptNotificationPermission } from '@/app/components/PusherNotificationInit'
 
 export default function LoginForm() {
   const [email, setEmail] = useState('')
