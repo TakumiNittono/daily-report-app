@@ -44,12 +44,22 @@ export async function promptNotificationPermission(): Promise<void> {
     // PushAlertの通知許可をリクエスト
     if (currentPermission === 'default') {
       try {
-        // PushAlertのsubscribeメソッドを呼び出す
-        if ((window as any).PushAlert && typeof (window as any).PushAlert.subscribe === 'function') {
-          await (window as any).PushAlert.subscribe()
-          console.log('PushAlert: Subscription request sent')
+        // PushAlertのAPIを確認
+        // PushAlertが自動的に通知許可をリクエストする場合もあるため、少し待機
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // PushAlertのsubscribeメソッドまたは通知許可をリクエスト
+        if ((window as any).PushAlert) {
+          // PushAlertのAPIが利用可能な場合、subscribeを呼び出す
+          if (typeof (window as any).PushAlert.subscribe === 'function') {
+            (window as any).PushAlert.subscribe()
+            console.log('PushAlert: Subscription request sent')
+          } else if (typeof (window as any).PushAlert.requestNotification === 'function') {
+            (window as any).PushAlert.requestNotification()
+            console.log('PushAlert: Notification request sent')
+          }
         } else {
-          // フォールバック: ネイティブの通知許可をリクエスト
+          // PushAlertがまだ読み込まれていない場合、ネイティブの通知許可をリクエスト
           const permission = await Notification.requestPermission()
           console.log('PushAlert: Native permission result:', permission)
           
@@ -89,15 +99,21 @@ export default function PushAlertInit() {
   const pathname = usePathname()
 
   useEffect(() => {
-    // PushAlertのスクリプトを読み込む
+    // PushAlertのスクリプトを読み込む（PushAlert推奨形式）
     if (typeof window !== 'undefined' && PUSHALERT_WIDGET_ID) {
       // 既にスクリプトが読み込まれているか確認
-      if (!(window as any).PushAlert) {
-        // PushAlertのスクリプトを動的に読み込む
+      if (!document.querySelector(`script[src*="pushalert.co/integrate_${PUSHALERT_WIDGET_ID}"]`)) {
+        // PushAlertの推奨スクリプト形式で読み込む
         const script = document.createElement('script')
-        script.src = `https://cdn.pushalert.co/${PUSHALERT_WIDGET_ID}.js`
-        script.async = true
-        script.defer = true
+        script.type = 'text/javascript'
+        script.innerHTML = `
+          (function(d, t) {
+            var g = d.createElement(t),
+                s = d.getElementsByTagName(t)[0];
+            g.src = "https://cdn.pushalert.co/integrate_${PUSHALERT_WIDGET_ID}.js";
+            s.parentNode.insertBefore(g, s);
+          }(document, "script"));
+        `
         document.head.appendChild(script)
         
         console.log('PushAlert: Script loaded')
