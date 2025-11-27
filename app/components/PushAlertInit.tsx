@@ -98,36 +98,73 @@ export async function promptNotificationPermission(): Promise<void> {
     }
     
     // 通知許可をリクエスト（defaultの場合）
+    // 確実に通知許可のプロンプトが表示されるように、ネイティブAPIを優先的に使用
+    // PushAlertが利用可能な場合は、PushAlertで購読を試みるが、失敗した場合はネイティブAPIを使用
     try {
-      // PushAlertのsubscribeメソッドを使用（最も一般的な方法）
+      let permissionGranted = false
+      
+      // PushAlertが利用可能な場合、まずPushAlertのsubscribe()を試す
       if (pushAlert && typeof pushAlert.subscribe === 'function') {
-        console.log('PushAlert: Calling subscribe() method')
-        await pushAlert.subscribe()
-        console.log('PushAlert: Subscription request completed')
-        return
+        try {
+          console.log('PushAlert: Attempting to subscribe via PushAlert...')
+          // PushAlertのsubscribe()を試す（タイムアウト付き）
+          const subscribePromise = pushAlert.subscribe()
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('PushAlert subscribe timeout')), 2000)
+          )
+          
+          await Promise.race([subscribePromise, timeoutPromise])
+          console.log('PushAlert: Subscription request sent')
+          
+          // PushAlertのsubscribe()が成功した後、通知許可の状態を確認
+          await new Promise(resolve => setTimeout(resolve, 500)) // 少し待機してから確認
+          const permission = Notification.permission
+          
+          if (permission === 'granted') {
+            console.log('PushAlert: Permission granted via PushAlert')
+            permissionGranted = true
+          } else if (permission === 'default') {
+            // PushAlertのsubscribe()が呼ばれたが、まだ許可されていない場合はネイティブAPIを使用
+            console.log('PushAlert: Permission still default, using native API')
+          }
+        } catch (subscribeError: any) {
+          console.warn('PushAlert: subscribe() failed or timed out, using native API:', subscribeError)
+          // PushAlertが失敗した場合は、ネイティブAPIを使用
+        }
       }
       
-      // フォールバック: ネイティブAPIを使用
-      console.log('PushAlert: Using native notification API as fallback')
-      const permission = await Notification.requestPermission()
+      // PushAlertが利用できない、または失敗した場合、ネイティブAPIを使用（確実にプロンプトを表示）
+      if (!permissionGranted && Notification.permission === 'default') {
+        console.log('PushAlert: Requesting notification permission via native API')
+        const permission = await Notification.requestPermission()
+        
+        if (permission === 'granted') {
+          console.log('PushAlert: Native permission granted')
+          permissionGranted = true
+        } else if (permission === 'denied') {
+          throw new Error('通知が拒否されました。')
+        }
+      }
       
-      if (permission === 'granted') {
-        console.log('PushAlert: Native permission granted')
-        return
-      } else if (permission === 'denied') {
-        throw new Error('通知が拒否されました。')
+      if (!permissionGranted) {
+        throw new Error('通知許可のリクエストが完了しませんでした。')
       }
     } catch (error: any) {
       console.error('PushAlert subscription error:', error)
       
-      // エラーが通知拒否関連でない場合、ネイティブAPIにフォールバック
-      if (!error?.message?.includes('拒否')) {
-        console.log('PushAlert: Falling back to native notification API')
-        const permission = await Notification.requestPermission()
-        if (permission === 'granted') {
-          return
-        } else if (permission === 'denied') {
-          throw new Error('通知が拒否されました。')
+      // 最後のフォールバック：ネイティブAPIで確実に試す
+      if (!error?.message?.includes('拒否') && Notification.permission === 'default') {
+        console.log('PushAlert: Final attempt with native notification API')
+        try {
+          const permission = await Notification.requestPermission()
+          if (permission === 'granted') {
+            console.log('PushAlert: Native permission granted in final attempt')
+            return
+          } else if (permission === 'denied') {
+            throw new Error('通知が拒否されました。')
+          }
+        } catch (nativeError: any) {
+          throw new Error('通知許可のリクエストに失敗しました。ブラウザの設定を確認してください。')
         }
       } else {
         throw error
