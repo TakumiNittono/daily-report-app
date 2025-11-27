@@ -5,6 +5,8 @@ import { TabType } from '@/types'
 import TodayTab from './today-tab'
 import HistoryTab from './history-tab'
 import TodoListByDate from './todo-list-by-date'
+import NotificationsTab from './notifications-tab'
+import NotificationSync from '@/app/components/NotificationSync'
 
 interface TabNavigationProps {
   userId: string
@@ -15,6 +17,7 @@ export default function TabNavigation({ userId }: TabNavigationProps) {
 
   return (
     <div>
+      <NotificationSync userId={userId} />
       {/* タブナビゲーション */}
       <div className="flex gap-2 mb-6 border-b border-zinc-200 dark:border-zinc-800">
         <button
@@ -47,6 +50,16 @@ export default function TabNavigation({ userId }: TabNavigationProps) {
         >
           過去の記録
         </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`px-6 py-3 font-medium transition-colors border-b-2 relative ${
+            activeTab === 'notifications'
+              ? 'text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400'
+              : 'text-zinc-600 dark:text-zinc-400 border-transparent hover:text-black dark:hover:text-zinc-50'
+          }`}
+        >
+          お知らせ
+        </button>
       </div>
 
       {/* タブコンテンツ */}
@@ -67,6 +80,7 @@ export default function TabNavigation({ userId }: TabNavigationProps) {
           </div>
         )}
         {activeTab === 'history' && <HistoryTab userId={userId} />}
+        {activeTab === 'notifications' && <NotificationsTab userId={userId} />}
       </div>
     </div>
   )

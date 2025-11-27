@@ -17,5 +17,5 @@ export interface DailyReport {
   updated_at: string
 }
 
-export type TabType = 'today' | 'today_todos' | 'history'
+export type TabType = 'today' | 'today_todos' | 'history' | 'notifications'
 
