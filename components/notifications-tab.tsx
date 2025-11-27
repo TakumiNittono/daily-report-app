@@ -38,13 +38,30 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         .order('created_at', { ascending: false })
         .limit(100)
 
-      if (error) throw error
+      if (error) {
+        // テーブルが存在しない場合のエラーを適切に処理
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('Notifications table does not exist yet. Please run supabase-notifications-setup.sql in Supabase.')
+          setNotifications([])
+          setUnreadCount(0)
+          setLoading(false)
+          return
+        }
+        throw error
+      }
 
       setNotifications(data || [])
       const unread = (data || []).filter(n => !n.is_read).length
       setUnreadCount(unread)
     } catch (error: any) {
-      console.error('Error fetching notifications:', error)
+      // テーブルが存在しない場合のエラーを適切に処理
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        console.warn('Notifications table does not exist yet. Please run supabase-notifications-setup.sql in Supabase.')
+        setNotifications([])
+        setUnreadCount(0)
+      } else {
+        console.error('Error fetching notifications:', error)
+      }
     } finally {
       setLoading(false)
     }

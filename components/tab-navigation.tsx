@@ -28,10 +28,24 @@ export default function TabNavigation({ userId }: TabNavigationProps) {
           .eq('user_id', userId)
           .eq('is_read', false)
 
-        if (error) throw error
+        if (error) {
+          // テーブルが存在しない場合は0を返す（エラーをログに残す）
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            console.warn('Notifications table does not exist yet. Please run supabase-notifications-setup.sql in Supabase.')
+            setUnreadCount(0)
+            return
+          }
+          throw error
+        }
         setUnreadCount(count || 0)
-      } catch (error) {
-        console.error('Error fetching unread count:', error)
+      } catch (error: any) {
+        // テーブルが存在しない場合のエラーを適切に処理
+        if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+          console.warn('Notifications table does not exist yet. Please run supabase-notifications-setup.sql in Supabase.')
+          setUnreadCount(0)
+        } else {
+          console.error('Error fetching unread count:', error)
+        }
       }
     }
 
