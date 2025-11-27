@@ -9,30 +9,27 @@ import { useEffect, useState } from 'react'
 const PUSHALERT_WIDGET_ID = process.env.NEXT_PUBLIC_PUSHALERT_WIDGET_ID || '7d31b1ce0e2fdb36d3af902d5d1e4278'
 
 // PushAlertのスクリプトが読み込まれるまで待機する関数
-async function waitForPushAlert(maxWaitTime = 20000): Promise<void> {
+async function waitForPushAlert(maxWaitTime = 3000): Promise<boolean> {
   const startTime = Date.now()
   
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const checkInterval = setInterval(() => {
       // PushAlertオブジェクトが存在し、ready状態を確認
       if ((window as any).PushAlert && typeof (window as any).PushAlert === 'object') {
         clearInterval(checkInterval)
         console.log('PushAlert: Object is now available')
-        resolve()
+        resolve(true)
       } else if (Date.now() - startTime > maxWaitTime) {
         clearInterval(checkInterval)
-        console.error('PushAlert: Timeout - PushAlert object not available', {
-          windowPushAlert: typeof (window as any).PushAlert,
-          elapsedTime: Date.now() - startTime
-        })
-        reject(new Error('PushAlertの読み込みがタイムアウトしました。ページをリロードしてください。'))
+        console.warn('PushAlert: Object not available within timeout, will use native API')
+        resolve(false)
       }
-    }, 200) // 200msごとに確認
+    }, 100) // 100msごとに確認（より頻繁にチェック）
     
     // 最初のチェック
     if ((window as any).PushAlert && typeof (window as any).PushAlert === 'object') {
       clearInterval(checkInterval)
-      resolve()
+      resolve(true)
     }
   })
 }
@@ -55,121 +52,92 @@ export async function promptNotificationPermission(): Promise<void> {
       throw new Error('PushAlertの設定が完了していません。環境変数NEXT_PUBLIC_PUSHALERT_WIDGET_IDを設定してください。')
     }
     
-    // スクリプトが読み込まれているか確認（まだの場合は待機）
-    const scriptExists = document.querySelector(`script[src*="pushalert.co/integrate_${PUSHALERT_WIDGET_ID}"]`)
-    if (!scriptExists) {
-      console.log('PushAlert: Script not found, waiting a moment for initialization...')
-      await new Promise(resolve => setTimeout(resolve, 2000)) // 2秒待機
+    // PushAlertのオブジェクトが利用可能か短時間で確認（最大3秒）
+    console.log('PushAlert: Checking if PushAlert object is available...')
+    const pushAlertAvailable = await waitForPushAlert(3000) // 最大3秒待機
+    
+    // PushAlertが利用できない場合は、ネイティブAPIにフォールバック
+    if (!pushAlertAvailable || !(window as any).PushAlert) {
+      console.log('PushAlert: Not available, using native notification API')
+      const permission = await Notification.requestPermission()
+      
+      if (permission === 'granted') {
+        console.log('PushAlert: Native permission granted')
+        return
+      } else if (permission === 'denied') {
+        throw new Error('通知が拒否されました。')
+      } else {
+        // defaultの場合は何もしない（ユーザーがキャンセル）
+        return
+      }
     }
     
-    // PushAlertのスクリプトが読み込まれるまで待機
-    console.log('PushAlert: Waiting for PushAlert object to be available...')
-    await waitForPushAlert(20000) // 最大20秒待機（タイムアウト時間を延長）
-    
-    // PushAlertのAPIが利用可能か確認
-    if (typeof window === 'undefined' || !(window as any).PushAlert) {
-      console.error('PushAlert: Object still not available after waiting')
-      throw new Error('PushAlertが読み込まれていません。ページをリロードしてください。')
-    }
-    
-    // 既に通知許可の状態を確認
+    // PushAlertが利用可能な場合の処理
+    const pushAlert = (window as any).PushAlert
     const currentPermission = Notification.permission
+    
     console.log('PushAlert: Current permission status:', currentPermission)
     
+    // 既に許可されている場合
     if (currentPermission === 'granted') {
       console.log('PushAlert: Notification already granted')
-      // 既に許可されている場合でも、PushAlertに購読を確認
+      // PushAlertに購読を確認（エラーは無視）
       try {
-        const pushAlert = (window as any).PushAlert
         if (pushAlert && typeof pushAlert.subscribe === 'function') {
           await pushAlert.subscribe()
         }
       } catch (e) {
-        console.log('PushAlert: Already subscribed or subscription not needed')
+        console.log('PushAlert: Subscription check completed')
       }
-      return // エラーを投げずに成功として返す
+      return
     }
     
+    // 既に拒否されている場合
     if (currentPermission === 'denied') {
       throw new Error('通知は既に拒否されています。ブラウザの設定から変更してください。')
     }
     
-    // PushAlertの通知許可をリクエスト
-    if (currentPermission === 'default') {
-      try {
-        // PushAlertのAPIを確認
-        const pushAlert = (window as any).PushAlert
-        
-        if (pushAlert) {
-          console.log('PushAlert: Available methods:', Object.keys(pushAlert))
-          
-          // PushAlertのsubscribeメソッドまたは通知許可をリクエスト
-          if (typeof pushAlert.subscribe === 'function') {
-            console.log('PushAlert: Calling subscribe() method')
-            await pushAlert.subscribe()
-            console.log('PushAlert: Subscription request sent')
-          } else if (typeof pushAlert.requestNotification === 'function') {
-            console.log('PushAlert: Calling requestNotification() method')
-            await pushAlert.requestNotification()
-            console.log('PushAlert: Notification request sent')
-          } else if (typeof pushAlert.requestPermission === 'function') {
-            console.log('PushAlert: Calling requestPermission() method')
-            await pushAlert.requestPermission()
-            console.log('PushAlert: Permission request sent')
-          } else {
-            // PushAlertのAPIが見つからない場合、ネイティブの通知許可をリクエスト
-            console.log('PushAlert: Using native notification API')
-            const permission = await Notification.requestPermission()
-            console.log('PushAlert: Native permission result:', permission)
-            
-            if (permission === 'denied') {
-              throw new Error('通知が拒否されました。')
-            }
-          }
-        } else {
-          throw new Error('PushAlertが読み込まれていません。')
+    // 通知許可をリクエスト（defaultの場合）
+    try {
+      // PushAlertのsubscribeメソッドを使用（最も一般的な方法）
+      if (pushAlert && typeof pushAlert.subscribe === 'function') {
+        console.log('PushAlert: Calling subscribe() method')
+        await pushAlert.subscribe()
+        console.log('PushAlert: Subscription request completed')
+        return
+      }
+      
+      // フォールバック: ネイティブAPIを使用
+      console.log('PushAlert: Using native notification API as fallback')
+      const permission = await Notification.requestPermission()
+      
+      if (permission === 'granted') {
+        console.log('PushAlert: Native permission granted')
+        return
+      } else if (permission === 'denied') {
+        throw new Error('通知が拒否されました。')
+      }
+    } catch (error: any) {
+      console.error('PushAlert subscription error:', error)
+      
+      // エラーが通知拒否関連でない場合、ネイティブAPIにフォールバック
+      if (!error?.message?.includes('拒否')) {
+        console.log('PushAlert: Falling back to native notification API')
+        const permission = await Notification.requestPermission()
+        if (permission === 'granted') {
+          return
+        } else if (permission === 'denied') {
+          throw new Error('通知が拒否されました。')
         }
-      } catch (error: any) {
-        console.error('PushAlert subscription error:', error)
-        
-        // ネイティブAPIにフォールバック
-        if (error?.message && !error.message.includes('既に拒否')) {
-          console.log('PushAlert: Falling back to native notification API')
-          try {
-            const permission = await Notification.requestPermission()
-            if (permission === 'granted') {
-              console.log('PushAlert: Native permission granted')
-              return
-            } else if (permission === 'denied') {
-              throw new Error('通知が拒否されました。')
-            }
-          } catch (nativeError: any) {
-            throw new Error('通知許可のリクエストに失敗しました。')
-          }
-        } else {
-          throw error
-        }
+      } else {
+        throw error
       }
     }
     
-    console.log('PushAlert: Permission prompt completed successfully')
+    console.log('PushAlert: Permission prompt completed')
   } catch (error: any) {
     console.error('PushAlert error:', error)
-    
-    // エラーメッセージをより分かりやすく
-    if (error?.message?.includes('localhost')) {
-      throw error
-    }
-    if (error?.message?.includes('設定が完了していません')) {
-      throw error
-    }
-    if (error?.message?.includes('読み込まれていません') || error?.message?.includes('タイムアウト')) {
-      throw error
-    }
-    if (error?.message?.includes('既に')) {
-      throw error
-    }
-    
+    // エラーメッセージをそのまま返す
     throw error
   }
 }
