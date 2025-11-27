@@ -13,6 +13,7 @@ export default function AdminNotificationForm({ onSuccess }: AdminNotificationFo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // 全ユーザーに通知を送信
   const handleSendToAll = async (e: React.FormEvent) => {
@@ -41,10 +42,25 @@ export default function AdminNotificationForm({ onSuccess }: AdminNotificationFo
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || '通知の作成に失敗しました')
+        const errorMessage = errorData.details 
+          ? `${errorData.error || '通知の作成に失敗しました'}\n${errorData.details}${errorData.hint ? `\n\n${errorData.hint}` : ''}${errorData.suggestion ? `\n\n${errorData.suggestion}` : ''}`
+          : errorData.error || '通知の作成に失敗しました'
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()
+      
+      // 成功メッセージに詳細を含める
+      let message = 'お知らせが作成されました！すべてのユーザーの「お知らせ」タブに表示されます。'
+      if (data.created !== undefined && data.total !== undefined) {
+        if (data.created < data.total) {
+          message = `${data.created}件の通知を作成しました（全${data.total}件中）。一部の通知の作成に失敗した可能性があります。`
+        } else {
+          message = `${data.created}件の通知を作成しました。すべてのユーザーの「お知らせ」タブに表示されます。`
+        }
+      }
+      
+      setSuccessMessage(message)
       setSuccess(true)
       setTitle('')
       setBody('')
@@ -56,7 +72,8 @@ export default function AdminNotificationForm({ onSuccess }: AdminNotificationFo
 
       setTimeout(() => {
         setSuccess(false)
-      }, 3000)
+        setSuccessMessage(null)
+      }, 5000) // 成功メッセージを少し長めに表示
     } catch (err: any) {
       setError(err.message || '通知の作成に失敗しました')
     } finally {
@@ -72,13 +89,15 @@ export default function AdminNotificationForm({ onSuccess }: AdminNotificationFo
       
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
-          {error}
+          <p className="font-medium mb-1">エラー</p>
+          <pre className="text-sm whitespace-pre-wrap">{error}</pre>
         </div>
       )}
 
-      {success && (
+      {success && successMessage && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded mb-4">
-          お知らせが作成されました！すべてのユーザーの「お知らせ」タブに表示されます。
+          <p className="font-medium mb-1">成功</p>
+          <p className="text-sm">{successMessage}</p>
         </div>
       )}
 

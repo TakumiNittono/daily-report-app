@@ -80,71 +80,57 @@ export async function PUT(request: Request) {
 
     const supabase = await createClient()
 
-    // 全ユーザーのIDを取得（admin_daily_reportsビューからユーザーIDを取得）
+    // 全ユーザーのIDを取得（複数のソースから取得して統合）
+    const userIdsSet = new Set<string>()
+
+    // 1. admin_daily_reportsから取得
     const { data: reportsData, error: reportsError } = await supabase
       .from('admin_daily_reports')
       .select('user_id')
       .limit(1000)
 
-    if (reportsError) {
-      console.error('Error fetching users from reports:', reportsError)
-      // フォールバック: todosテーブルから取得
-      const { data: todosData } = await supabase
-        .from('admin_todos')
-        .select('user_id')
-        .limit(1000)
-
-      if (!todosData || todosData.length === 0) {
-        return NextResponse.json(
-          { error: 'Failed to fetch users' },
-          { status: 500 }
-        )
-      }
-
-      // ユーザーIDのリストを作成（重複を削除）
-      const userIds = [...new Set(todosData.map(t => t.user_id))]
-      const notifications = userIds.map(userId => ({
-        user_id: userId,
-        title,
-        body: notificationBody || null,
-        url: url || null,
-        icon: icon || null,
-        image: image || null,
-        data: data || null,
-        is_read: false,
-      }))
-
-      const { data: createdNotifications, error: createError } = await supabase
-        .from('notifications')
-        .insert(notifications)
-        .select()
-
-      if (createError) {
-        console.error('Error creating notifications:', createError)
-        return NextResponse.json(
-          { error: 'Failed to create notifications', details: createError.message },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json(
-        {
-          message: `Created ${createdNotifications?.length || 0} notifications`,
-          notifications: createdNotifications
-        },
-        { status: 201 }
-      )
+    if (!reportsError && reportsData) {
+      reportsData.forEach(r => {
+        if (r.user_id) {
+          userIdsSet.add(r.user_id)
+        }
+      })
+    } else {
+      console.warn('Error fetching users from reports:', reportsError)
     }
 
-    // ユーザーIDのリストを作成（重複を削除）
-    const userIds = [...new Set((reportsData || []).map(r => r.user_id))]
+    // 2. admin_todosから取得（フォールバック）
+    const { data: todosData, error: todosError } = await supabase
+      .from('admin_todos')
+      .select('user_id')
+      .limit(1000)
+
+    if (!todosError && todosData) {
+      todosData.forEach(t => {
+        if (t.user_id) {
+          userIdsSet.add(t.user_id)
+        }
+      })
+    } else {
+      console.warn('Error fetching users from todos:', todosError)
+    }
+
+    // ユーザーIDのリストを作成
+    const userIds = Array.from(userIdsSet)
 
     if (userIds.length === 0) {
+      // ユーザーが存在しない場合のエラーメッセージ
       return NextResponse.json(
-        { error: 'No users found' },
+        { 
+          error: 'No users found', 
+          details: 'ユーザーが見つかりませんでした。データベースに日報またはToDoが登録されているユーザーが必要です。',
+          suggestion: 'まず、一般画面から日報やToDoを作成してから、通知を送信してください。'
+        },
         { status: 404 }
       )
     }
+
+    console.log(`Found ${userIds.length} users to send notifications to`)
 
     // 全ユーザーに通知を作成
     const notifications = userIds.map(userId => ({
@@ -158,23 +144,51 @@ export async function PUT(request: Request) {
       is_read: false,
     }))
 
-    const { data: createdNotifications, error: createError } = await supabase
-      .from('notifications')
-      .insert(notifications)
-      .select()
+    // バッチで通知を作成（一度に挿入できる数の制限を考慮）
+    const batchSize = 100
+    const allCreatedNotifications: any[] = []
+    let hasError = false
+    let lastError: any = null
 
-    if (createError) {
-      console.error('Error creating notifications:', createError)
+    for (let i = 0; i < notifications.length; i += batchSize) {
+      const batch = notifications.slice(i, i + batchSize)
+      
+      const { data: createdNotifications, error: createError } = await supabase
+        .from('notifications')
+        .insert(batch)
+        .select()
+
+      if (createError) {
+        console.error(`Error creating notifications batch ${i / batchSize + 1}:`, createError)
+        hasError = true
+        lastError = createError
+        // エラーがあっても続行（部分的に成功する可能性がある）
+      } else if (createdNotifications) {
+        allCreatedNotifications.push(...createdNotifications)
+      }
+    }
+
+    if (hasError && allCreatedNotifications.length === 0) {
+      // すべてのバッチが失敗した場合
       return NextResponse.json(
-        { error: 'Failed to create notifications', details: createError.message },
+        { 
+          error: 'Failed to create notifications',
+          details: lastError?.message || 'Unknown error',
+          hint: lastError?.code === '42P01' 
+            ? 'notificationsテーブルが存在しません。supabase-notifications-setup.sqlを実行してください。'
+            : 'データベースエラーが発生しました。詳細を確認してください。'
+        },
         { status: 500 }
       )
     }
 
     return NextResponse.json(
       { 
-        message: `Created ${createdNotifications?.length || 0} notifications`,
-        notifications: createdNotifications 
+        message: `Created ${allCreatedNotifications.length} out of ${notifications.length} notifications`,
+        created: allCreatedNotifications.length,
+        total: notifications.length,
+        notifications: allCreatedNotifications,
+        ...(hasError ? { warning: 'Some notifications failed to create' } : {})
       },
       { status: 201 }
     )
