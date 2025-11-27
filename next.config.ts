@@ -5,24 +5,13 @@ const nextConfig: NextConfig = {
   /* config options here */
 };
 
+// PushAlertのService Workerを使用するため、next-pwaのService Worker生成を無効化
 const pwaConfig = withPWA({
   dest: "public",
-  register: true,
+  register: false, // PushAlertのService Workerを使用するため、next-pwaの自動登録を無効化
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development", // 開発環境では無効化（オプション）
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-      handler: "NetworkFirst",
-      options: {
-        cacheName: "supabase-cache",
-        expiration: {
-          maxEntries: 50,
-          maxAgeSeconds: 24 * 60 * 60, // 24時間
-        },
-      },
-    },
-  ],
+  disable: true, // PushAlertのService Workerを使用するため、next-pwaを無効化
+  // runtimeCachingは無効化中
 });
 
 export default pwaConfig(nextConfig);
