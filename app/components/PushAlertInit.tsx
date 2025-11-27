@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation'
 // PushAlertのWidget ID（環境変数から取得）
 // Next.jsでは、NEXT_PUBLIC_プレフィックスの環境変数はクライアント側で使用可能
 // ビルド時に置き換えられるように、直接参照する
-const PUSHALERT_WIDGET_ID = process.env.NEXT_PUBLIC_PUSHALERT_WIDGET_ID || ''
+// 環境変数が設定されていない場合は、ハードコードされたWidget IDを使用（Vercelで環境変数が設定されていない場合のフォールバック）
+const PUSHALERT_WIDGET_ID = process.env.NEXT_PUBLIC_PUSHALERT_WIDGET_ID || '7d31b1ce0e2fdb36d3af902d5d1e4278'
 
 // PushAlertのスクリプトが読み込まれるまで待機する関数
 async function waitForPushAlert(maxWaitTime = 10000): Promise<void> {
